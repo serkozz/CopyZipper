@@ -4,22 +4,31 @@ using CommandLine.Text;
 namespace CopyZipper;
 class Program
 {
-    static async Task Main(string[] args)
+    static Int32 Main(string[] args)
     {
-        //args = new String[] {
-        //    "-w",
-        //    @"C:\Users\Сергей\Desktop\From",
-        //    @"-t",
-        //    @"C:\Users\Сергей\Desktop\To",
-        //    @"-o",
-        //};
+        args = new String[] {
+           "unzip",
+           "-w",
+           @"C:\Users\Сергей\Desktop\To",
+           @"-t",
+           @"C:\Users\Сергей\Desktop\To\ToInner",
+           @"-o",
+           @"-l",
+           @"C:\Users\Сергей\DesktopLogs\log.txt",
+        };
         var parser = new Parser(settings =>
         {
             settings.CaseInsensitiveEnumValues = true;
             settings.HelpWriter = null;
         });
-        var parsedResults = parser.ParseArguments<Options>(args);
-        await(await parsedResults.WithParsedAsync(Run)).WithNotParsedAsync(errs => Task.FromResult<Int32>(DisplayHelp(parsedResults, errs)));
+
+        var parsedResults = parser.ParseArguments<UnzipOptions, CopyOptions>(args);
+
+        return parsedResults.MapResult<UnzipOptions, CopyOptions, Int32>(
+           (UnzipOptions unzipOptions) => Run(unzipOptions as IOptions),
+           (CopyOptions copyOptions) => Run(copyOptions as IOptions),
+            errors => DisplayHelp(parsedResults, errors)
+        );
     }
 
     static Int32 DisplayHelp<T>(ParserResult<T> result, IEnumerable<Error> errors)
@@ -35,10 +44,9 @@ class Program
         return 0;
     }
 
-    private static async Task Run(Options opts)
+    private static Int32 Run(IOptions opts)
     {
-        await CopyZipper.WatchForChanges(opts);
-        System.Console.WriteLine("Program Finished");
+        return CopyZipper.WatchForChanges(opts);
     }
 
     private static void HandleParseError(IEnumerable<Error> errs)

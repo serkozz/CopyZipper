@@ -7,31 +7,46 @@ using SharpCompress.Common;
 namespace CopyZipper;
 static class CopyZipper
 {
-    public static async Task WatchForChanges(Options options)
+    public static Int32 WatchForChanges(IOptions options)
     {
         FileSystemWatcher watcher = new FileSystemWatcher()
         {
             Path = options.WatchPath,
         };
 
+        Logger logger = new Logger();
+
+        if (!String.IsNullOrEmpty(options.LogPath?.Trim()))
+            logger.ConfigureFileLogger(options.LogPath!,
+            restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Information,
+            rollingInterval: Serilog.RollingInterval.Day);
+
+        logger.ConfigureConsole();
+        logger.CreateLogger();
+
         watcher.Created += (sender, args) =>
         {
-            OnNewFileDetected(args, options);
+            OnNewFileDetected(args, options, logger);
         };
         watcher.Renamed += (sender, args) =>
         {
-            OnNewFileDetected(args, options);
+            OnNewFileDetected(args, options, logger);
         };
 
         watcher.EnableRaisingEvents = true;
+
+        if (options is UnzipOptions)
+            logger.Log(Serilog.Events.LogEventLevel.Information, $"CopyZipper started! Mode: Unzip. Watching '{options.WatchPath}' folder");
+        else if (options is CopyOptions)
+            logger.Log(Serilog.Events.LogEventLevel.Information, $"CopyZipper started! Mode: Copy. Watching '{options.WatchPath}' folder");
+
         while (true)
         {
-            await Task.Delay(1000);
-            System.Console.WriteLine($"{DateTime.Now} === (CopyZipper) Watching...");
+            Thread.Sleep(1000);
         }
     }
 
-    private static void OnNewFileDetected(FileSystemEventArgs e, Options options)
+    private static void OnNewFileDetected(FileSystemEventArgs e, IOptions options, Logger logger)
     {
         try
         {
@@ -42,17 +57,18 @@ static class CopyZipper
 
             if (regexMatch && extMatch)
             {
-                Console.WriteLine($"{Environment.NewLine}-----------------------------------");
-                Console.WriteLine($"Created File \"{nameExtPair[0] + '.' + nameExtPair[1]}\"");
-                Console.WriteLine($"Unziping to \"{options.ToPath}\" folder");
-                Unzip(e.FullPath, options);
-                Console.WriteLine($"Done!");
+                logger.Log(Serilog.Events.LogEventLevel.Information, $"Created File '{e.FullPath}'");
+
+                if (options is UnzipOptions)
+                    Unzip(e.FullPath, (options as UnzipOptions)!, logger);
+                else if (options is CopyOptions)
+                    Copy(e.FullPath, (options as CopyOptions)!, logger);
+
                 if (options.DeleteAfter)
                 {
-                    Console.WriteLine($"Original archive was deleted!");
                     File.Delete(e.FullPath);
+                    logger.Log(Serilog.Events.LogEventLevel.Verbose, $"Original archive was deleted!");
                 }
-                Console.WriteLine($"-----------------------------------");
             }
             else if (regexMatch && !extMatch)
                 throw new ArgumentException($"Extension missmatch (Watching for {options.FileExtension.ToString().ToUpper()} but found {nameExtPair[1].ToUpper()})");
@@ -61,17 +77,30 @@ static class CopyZipper
         }
         catch (Exception ex)
         {
-            System.Console.WriteLine("Error occured: " + ex.Message);
+            logger.LogException(Serilog.Events.LogEventLevel.Error, ex, $"Error: {ex.Message}");
         }
     }
 
-    private static void Unzip(String fullPath, Options options)
+    private static void Copy(String fullPath, CopyOptions copyOptions, Logger logger)
     {
-        Options? currentOptions;
+        foreach (var toPath in copyOptions.ToPaths)
+        {
+            logger.Log(Serilog.Events.LogEventLevel.Information, $"Copying '{fullPath}' to '{toPath}' folder");
+            logger.LogExecutionTime(
+                () => File.Copy(fullPath, toPath + Path.DirectorySeparatorChar + Path.GetFileName(fullPath), copyOptions.Override),
+                $"Copying '{fullPath}' to '{toPath}' folder");
+        }
+    }
+
+    private static void Unzip(String fullPath, UnzipOptions options, Logger logger)
+    {
+        UnzipOptions? currentOptions;
+
         if (options.FileExtension == FileExtension.All)
         {
             string extension = Path.GetExtension(fullPath).TrimStart('.');
-            currentOptions = options.Clone();
+            currentOptions = options.Clone() as UnzipOptions;
+            ArgumentNullException.ThrowIfNull(currentOptions);
             if (currentOptions is null)
                 throw new ArgumentNullException("Cant cast object to options");
             currentOptions.FileExtension = extension.ToExtension();
@@ -79,11 +108,21 @@ static class CopyZipper
         else
             currentOptions = options;
 
+        foreach (var toPath in options.ToPaths)
+        {
+            logger.Log(Serilog.Events.LogEventLevel.Information, $"Unziping '{fullPath}' to '{toPath}' folder");
+            logger.LogExecutionTime(() => UnzipSwitch(fullPath, toPath, currentOptions, options.Override),
+                $"Unziping '{fullPath}' to '{toPath}' folder");
+        }
+    }
+
+    private static void UnzipSwitch(String fullPath, String toPath, UnzipOptions currentOptions, Boolean overrideResult)
+    {
         switch (currentOptions.FileExtension)
         {
             case FileExtension.Zip:
                 {
-                    ZipFile.ExtractToDirectory(fullPath, currentOptions.ToPath, currentOptions.Override);
+                    ZipFile.ExtractToDirectory(fullPath, toPath, currentOptions.Override);
                     break;
                 }
             case FileExtension.Rar:
@@ -92,7 +131,7 @@ static class CopyZipper
                     {
                         foreach (var entry in archive.Entries.Where(entry => !entry.IsDirectory))
                         {
-                            entry.WriteToDirectory(currentOptions.ToPath, new ExtractionOptions()
+                            entry.WriteToDirectory(toPath, new ExtractionOptions()
                             {
                                 ExtractFullPath = true,
                                 Overwrite = currentOptions.Override
@@ -105,10 +144,10 @@ static class CopyZipper
                 {
                     using (SevenZipArchive archive = new SevenZipArchive(fullPath))
                     {
-                        var resultDirectory = currentOptions.ToPath + Path.DirectorySeparatorChar + archive.Entries.First().Name;
-                        if (!options.Override && Directory.Exists(resultDirectory))
+                        var resultDirectory = toPath + Path.DirectorySeparatorChar + archive.Entries.First().Name;
+                        if (!overrideResult && Directory.Exists(resultDirectory))
                             throw new Exception($"Directory '{resultDirectory}' already exists");
-                        archive.ExtractToDirectory(currentOptions.ToPath);
+                        archive.ExtractToDirectory(toPath);
                     }
                     break;
                 }
