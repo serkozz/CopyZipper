@@ -6,16 +6,16 @@ class Program
 {
     static Int32 Main(string[] args)
     {
-        args = new String[] {
-           "unzip",
-           "-w",
-           @"C:\Users\Сергей\Desktop\To",
-           @"-t",
-           @"C:\Users\Сергей\Desktop\To\ToInner",
-           @"-o",
-           @"-l",
-           @"C:\Users\Сергей\DesktopLogs\log.txt",
-        };
+        // args = new String[] {
+        //    "copy",
+        //    "-w",
+        //    @"C:\Users\Сергей\Desktop\From",
+        //    @"-t",
+        //    @"C:\Users\Сергей\Desktop\To",
+        //    @"-o",
+        //    @"-l",
+        //    @"C:\Users\Сергей\DesktopLogs\log.txt",
+        // };
         var parser = new Parser(settings =>
         {
             settings.CaseInsensitiveEnumValues = true;
@@ -47,19 +47,5 @@ class Program
     private static Int32 Run(IOptions opts)
     {
         return CopyZipper.WatchForChanges(opts);
-    }
-
-    private static void HandleParseError(IEnumerable<Error> errs)
-    {
-        if (errs.IsVersion())
-        {
-            Console.WriteLine("Version Request");
-            return;
-        }
-
-        foreach (var err in errs)
-        {
-            Console.WriteLine($"Error occured: {err.Tag.ToString()}");
-        }
     }
 }

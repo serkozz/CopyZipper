@@ -86,8 +86,13 @@ static class CopyZipper
         foreach (var toPath in copyOptions.ToPaths)
         {
             logger.Log(Serilog.Events.LogEventLevel.Information, $"Copying '{fullPath}' to '{toPath}' folder");
+            var filenameSplitted = Path.GetFileName(fullPath).Split('.', 2);
             logger.LogExecutionTime(
-                () => File.Copy(fullPath, toPath + Path.DirectorySeparatorChar + Path.GetFileName(fullPath), copyOptions.Override),
+                () => {
+                    File.Copy(fullPath, toPath + Path.DirectorySeparatorChar + filenameSplitted[0] + ".temp", copyOptions.Override);
+                    File.Move(toPath + Path.DirectorySeparatorChar + filenameSplitted[0] + ".temp",
+                    toPath + Path.DirectorySeparatorChar + String.Join('.', filenameSplitted));
+                },
                 $"Copying '{fullPath}' to '{toPath}' folder");
         }
     }
