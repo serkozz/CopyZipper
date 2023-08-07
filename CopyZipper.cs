@@ -9,12 +9,12 @@ static class CopyZipper
 {
     public static Int32 WatchForChanges(IOptions options)
     {
-        FileSystemWatcher watcher = new FileSystemWatcher()
+        FileSystemWatcher watcher = new()
         {
             Path = options.WatchPath,
         };
 
-        Logger logger = new Logger();
+        Logger logger = new();
 
         if (!String.IsNullOrEmpty(options.LogPath?.Trim()))
             logger.ConfigureFileLogger(options.LogPath!,
@@ -41,9 +41,7 @@ static class CopyZipper
             logger.Log(Serilog.Events.LogEventLevel.Information, $"CopyZipper started! Mode: Copy. Watching '{options.WatchPath}' folder");
 
         while (true)
-        {
             Thread.Sleep(1000);
-        }
     }
 
     private static void OnNewFileDetected(FileSystemEventArgs e, IOptions options, Logger logger)
@@ -91,7 +89,7 @@ static class CopyZipper
                 () => {
                     File.Copy(fullPath, toPath + Path.DirectorySeparatorChar + filenameSplitted[0] + ".temp", copyOptions.Override);
                     File.Move(toPath + Path.DirectorySeparatorChar + filenameSplitted[0] + ".temp",
-                    toPath + Path.DirectorySeparatorChar + String.Join('.', filenameSplitted));
+                        toPath + Path.DirectorySeparatorChar + String.Join('.', filenameSplitted));
                 },
                 $"Copying '{fullPath}' to '{toPath}' folder");
         }
@@ -132,28 +130,24 @@ static class CopyZipper
                 }
             case FileExtension.Rar:
                 {
-                    using (var archive = SharpCompress.Archives.Rar.RarArchive.Open(fullPath))
+                    using var archive = SharpCompress.Archives.Rar.RarArchive.Open(fullPath);
+                    foreach (var entry in archive.Entries.Where(entry => !entry.IsDirectory))
                     {
-                        foreach (var entry in archive.Entries.Where(entry => !entry.IsDirectory))
+                        entry.WriteToDirectory(toPath, new ExtractionOptions()
                         {
-                            entry.WriteToDirectory(toPath, new ExtractionOptions()
-                            {
-                                ExtractFullPath = true,
-                                Overwrite = currentOptions.Override
-                            });
-                        }
+                            ExtractFullPath = true,
+                            Overwrite = currentOptions.Override
+                        });
                     }
                     break;
                 }
             case FileExtension.SevenZip:
                 {
-                    using (SevenZipArchive archive = new SevenZipArchive(fullPath))
-                    {
-                        var resultDirectory = toPath + Path.DirectorySeparatorChar + archive.Entries.First().Name;
-                        if (!overrideResult && Directory.Exists(resultDirectory))
-                            throw new Exception($"Directory '{resultDirectory}' already exists");
-                        archive.ExtractToDirectory(toPath);
-                    }
+                    using SevenZipArchive archive = new(fullPath);
+                    var resultDirectory = toPath + Path.DirectorySeparatorChar + archive.Entries.First().Name;
+                    if (!overrideResult && Directory.Exists(resultDirectory))
+                        throw new Exception($"Directory '{resultDirectory}' already exists");
+                    archive.ExtractToDirectory(toPath);
                     break;
                 }
             default:

@@ -16,7 +16,7 @@ public class UnzipOptions : IOptions
     [Option('e', "ext", HelpText = "Расширение файлов", Default = FileExtension.All)]
     public FileExtension FileExtension { get; set; }
 
-    [Option('o', "override", HelpText = "Перезаписывать файлы?", Default = false)]
+    [Option('o', "override", HelpText = "Перезаписывать файлы с одинаковым именем?", Default = false)]
     public Boolean Override { get; set; }
 
     [Option('d', "delete", HelpText = "Удалить исходный архив после операций?", Default = false)]
@@ -41,17 +41,13 @@ static class FileExtensionExtensions
 {
     public static FileExtension ToExtension(this string extensionString)
     {
-        switch (extensionString)
+        return extensionString switch
         {
-            case "rar":
-                return FileExtension.Rar;
-            case "zip":
-                return FileExtension.Zip;
-            case "7z":
-                return FileExtension.SevenZip;
-            default:
-                return FileExtension.All;
-        }
+            "rar" => FileExtension.Rar,
+            "zip" => FileExtension.Zip,
+            "7z" => FileExtension.SevenZip,
+            _ => FileExtension.All,
+        };
     }
     public static string GetExtension(this FileExtension extension)
     {

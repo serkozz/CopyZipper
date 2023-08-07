@@ -16,7 +16,7 @@ public class CopyOptions : IOptions
     [Option('e', "ext", HelpText = "Расширение файлов", Default = FileExtension.All)]
     public FileExtension FileExtension { get; set; }
 
-    [Option('o', "override", HelpText = "Перезаписывать файлы?", Default = false)]
+    [Option('o', "override", HelpText = "Перезаписывать файлы с одинаковым именем?", Default = false)]
     public Boolean Override { get; set; }
 
     [Option('d', "delete", HelpText = "Удалить исходный архив после операций?", Default = false)]

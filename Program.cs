@@ -24,14 +24,14 @@ class Program
 
         var parsedResults = parser.ParseArguments<UnzipOptions, CopyOptions>(args);
 
-        return parsedResults.MapResult<UnzipOptions, CopyOptions, Int32>(
+        return parsedResults.MapResult(
            (UnzipOptions unzipOptions) => Run(unzipOptions as IOptions),
            (CopyOptions copyOptions) => Run(copyOptions as IOptions),
-            errors => DisplayHelp(parsedResults, errors)
+            errors => DisplayHelp(parsedResults /*, errors*/)
         );
     }
 
-    static Int32 DisplayHelp<T>(ParserResult<T> result, IEnumerable<Error> errors)
+    static Int32 DisplayHelp<T>(ParserResult<T> result /*, IEnumerable<Error> errors*/)
     {
         var helpText = HelpText.AutoBuild(result, h =>
         {
